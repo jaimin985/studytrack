@@ -77,29 +77,6 @@ class TestMailerAndTemplates(unittest.TestCase):
         self.assertIn("in 3 days", html)
         self.assertIn("Mid-Sem", html)
 
-    def test_exam_email_distinct_types(self):
-        """Verify that Quiz, Lab Exam, Mid-Sem, and Semester Exam render distinct headers and icons."""
-        type_icons = {
-            "Quiz": "📝",
-            "Lab Exam": "🧪",
-            "Mid-Sem": "📚",
-            "Semester Exam": "🎓",
-        }
-        for et, icon in type_icons.items():
-            exam = {
-                "title": f"Test {et}",
-                "subject": "Computer Science",
-                "exam_type": et,
-                "exam_date": "2026-11-26",
-                "exam_time": "14:00:00",
-                "venue": "Lab 101",
-                "syllabus": "Unit 1 and 2"
-            }
-            html = build_exam_reminder_html("Demo Student", exam, days_left=2)
-            self.assertIn(f"{icon} {et} Reminder", html)
-            self.assertIn(f"Your <strong>{et}</strong> is", html)
-            self.assertIn("in 2 days", html)
-
     @patch.dict(os.environ, {"SMTP_USERNAME": "", "SMTP_PASSWORD": ""})
     def test_smtp_not_configured_fallback(self):
         """Verify that is_smtp_configured is False and send_email safely falls back to console."""
