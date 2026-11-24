@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block title %}Settings – StudyTrack{% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3 class="fw-bold mb-1"><i class="bi bi-gear me-2"></i>Settings</h3>
+        <p class="text-muted mb-0">Email notifications and system configuration.</p>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- SMTP Status -->
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white">
+                <h5 class="fw-bold mb-0"><i class="bi bi-envelope me-2 text-primary"></i>Email Notifications</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-3">
+                    <span class="me-2">SMTP Status:</span>
+                    {% if smtp_configured %}
+                    <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Configured</span>
+                    {% else %}
+                    <span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle me-1"></i>Not Configured</span>
+                    {% endif %}
+                </div>
+
+                {% if not smtp_configured %}
+                <div class="alert alert-info small">
+                    <i class="bi bi-info-circle me-1"></i>
+                    SMTP is not configured. Emails will be <strong>logged to the console</strong> instead of sent.
+                    To enable real emails, set <code>SMTP_USERNAME</code> and <code>SMTP_PASSWORD</code> in the
+                    <code>.env</code> file and restart the containers.
+                </div>
+                {% endif %}
+
+                <h6 class="mt-4 mb-3">Reminder Schedule</h6>
+                <ul class="list-unstyled small">
+                    <li class="mb-2">
+                        <i class="bi bi-clock me-2 text-primary"></i>
+                        <strong>Assignments:</strong> Email 1 day before due date (if not completed)
+                    </li>
+                    <li class="mb-2">
+                        <i class="bi bi-clock me-2 text-danger"></i>
+                        <strong>Exams:</strong> Email 3 days before AND 1 day before
+                    </li>
+                    <li class="mb-2">
+                        <i class="bi bi-arrow-repeat me-2 text-success"></i>
+                        {% if interval %}
+                        <strong>Mode:</strong> <span class="badge bg-warning text-dark">Demo</span> – checking every {{ interval }} minute(s)
+                        {% else %}
+                        <strong>Mode:</strong> <span class="badge bg-info">Production</span> – daily check at scheduled time
+                        {% endif %}
+                    </li>
+                </ul>
+
+                <hr>
+
+                <div class="d-flex gap-2">
+                    <form method="POST" action="{{ url_for('test_email') }}">
+                        <button type="submit" class="btn btn-outline-primary">
+                            <i class="bi bi-send me-1"></i> Send Test Email
+                        </button>
+                    </form>
+                    <form method="POST" action="{{ url_for('manual_check') }}">
+                        <button type="submit" class="btn btn-outline-success">
+                            <i class="bi bi-arrow-clockwise me-1"></i> Run Reminder Check Now
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- System Info -->
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white">
+                <h5 class="fw-bold mb-0"><i class="bi bi-info-circle me-2 text-primary"></i>System Info</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm table-borderless">
+                    <tr>
+                        <td class="text-muted"><i class="bi bi-person me-2"></i>Logged in as</td>
+                        <td class="fw-semibold">{{ session.get('user_name', 'N/A') }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted"><i class="bi bi-envelope me-2"></i>Email</td>
+                        <td class="fw-semibold">{{ session.get('user_email', 'N/A') }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted"><i class="bi bi-hdd-stack me-2"></i>Architecture</td>
+                        <td class="fw-semibold">Two-Tier (Flask + MySQL)</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted"><i class="bi bi-box me-2"></i>Containerized</td>
+                        <td class="fw-semibold">Docker + Docker Compose</td>
+                    </tr>
+                </table>
+
+                <hr>
+
+                <h6>Quick Help</h6>
+                <div class="accordion accordion-flush" id="helpAccordion">
+                    <div class="accordion-item border-0">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed small px-0" type="button"
+                                    data-bs-toggle="collapse" data-bs-target="#helpGmail">
+                                How to set up Gmail App Password?
+                            </button>
+                        </h2>
+                        <div id="helpGmail" class="accordion-collapse collapse" data-bs-parent="#helpAccordion">
+                            <div class="accordion-body small px-0">
+                                <ol>
+                                    <li>Go to <a href="https://myaccount.google.com/security" target="_blank">Google Account Security</a></li>
+                                    <li>Enable <strong>2-Step Verification</strong> (if not already on)</li>
+                                    <li>Go to <a href="https://myaccount.google.com/apppasswords" target="_blank">App Passwords</a></li>
+                                    <li>Create a new App Password for "Mail" → "Other" → name it "StudyTrack"</li>
+                                    <li>Copy the 16-character password into <code>SMTP_PASSWORD</code> in <code>.env</code></li>
+                                    <li>Set <code>SMTP_USERNAME</code> to your Gmail address</li>
+                                    <li>Restart: <code>docker compose down && docker compose up -d</code></li>
+                                </ol>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item border-0">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed small px-0" type="button"
+                                    data-bs-toggle="collapse" data-bs-target="#helpPort">
+                                Port 8085 is busy – how to change?
+                            </button>
+                        </h2>
+                        <div id="helpPort" class="accordion-collapse collapse" data-bs-parent="#helpAccordion">
+                            <div class="accordion-body small px-0">
+                                <ol>
+                                    <li>Check: <code>lsof -i :8085</code></li>
+                                    <li>Edit <code>.env</code> → change <code>APP_PORT=8085</code> to another port (e.g. 8086)</li>
+                                    <li>Restart: <code>docker compose down && docker compose up -d</code></li>
+                                    <li>Open <code>http://localhost:YOUR_PORT</code></li>
+                                </ol>
+                                <div class="alert alert-warning small mt-2 mb-0">
+                                    <i class="bi bi-exclamation-triangle me-1"></i>
+                                    <strong>macOS users:</strong> Never use port 5000 or 7000 — they are reserved by AirPlay Receiver.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

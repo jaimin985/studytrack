@@ -1,0 +1,78 @@
+# ============================================================
+# StudyTrack – Docker Compose (Two-Tier: Flask + MySQL)
+# ============================================================
+# Usage:
+#   docker compose up --build -d      (start)
+#   docker compose down               (stop, keep data)
+#   docker compose down -v            (stop + delete data)
+# ============================================================
+
+services:
+  # ---------- Tier 1: Flask Web Application ----------
+  web:
+    build: .
+    container_name: studytrack-web
+    ports:
+      - "${APP_PORT:-8085}:8085"
+    environment:
+      - MYSQL_HOST=${MYSQL_HOST:-db}
+      - MYSQL_PORT=${MYSQL_PORT:-3306}
+      - MYSQL_USER=${MYSQL_USER:-studytrack}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-studytrack123}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-studytrack}
+      - SECRET_KEY=${SECRET_KEY:-dev-secret-key}
+      - SMTP_SERVER=${SMTP_SERVER:-smtp.gmail.com}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USERNAME=${SMTP_USERNAME:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_FROM_NAME=${SMTP_FROM_NAME:-StudyTrack Reminders}
+      - REMINDER_HOUR=${REMINDER_HOUR:-8}
+      - REMINDER_MINUTE=${REMINDER_MINUTE:-0}
+      - REMINDER_CHECK_INTERVAL_MINUTES=${REMINDER_CHECK_INTERVAL_MINUTES:-}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - studytrack-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8085/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # ---------- Tier 2: MySQL Database ----------
+  db:
+    image: mysql:8.0
+    container_name: studytrack-db
+    ports:
+      - "${DB_HOST_PORT:-3307}:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-rootpass123}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-studytrack}
+      - MYSQL_USER=${MYSQL_USER:-studytrack}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-studytrack123}
+    volumes:
+      - studytrack-db-data:/var/lib/mysql
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    restart: unless-stopped
+    networks:
+      - studytrack-net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-rootpass123}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+# ---------- Custom Bridge Network ----------
+networks:
+  studytrack-net:
+    driver: bridge
+    name: studytrack-network
+
+# ---------- Named Volume for Data Persistence ----------
+volumes:
+  studytrack-db-data:
+    name: studytrack-db-data

@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+{% block title %}Exams – StudyTrack{% endblock %}
+{% block content %}
+
+<!-- Page Header -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3 class="fw-bold mb-1"><i class="bi bi-pencil-square me-2"></i>Exams</h3>
+        <p class="text-muted mb-0">Keep track of all your upcoming quizzes and exams.</p>
+    </div>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addExamModal">
+        <i class="bi bi-plus-circle me-1"></i> Add Exam
+    </button>
+</div>
+
+<!-- ======== FILTERS ======== -->
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-body py-2">
+        <form method="GET" action="{{ url_for('exams_list') }}" class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label small mb-1">Subject</label>
+                <select name="subject" class="form-select form-select-sm">
+                    <option value="">All Subjects</option>
+                    {% for s in subjects %}
+                    <option value="{{ s }}" {% if subject_filter == s %}selected{% endif %}>{{ s }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small mb-1">Type</label>
+                <select name="exam_type" class="form-select form-select-sm">
+                    <option value="">All Types</option>
+                    <option value="Quiz" {% if type_filter == 'Quiz' %}selected{% endif %}>Quiz</option>
+                    <option value="Lab Exam" {% if type_filter == 'Lab Exam' %}selected{% endif %}>Lab Exam</option>
+                    <option value="Mid-Sem" {% if type_filter == 'Mid-Sem' %}selected{% endif %}>Mid-Sem</option>
+                    <option value="Semester Exam" {% if type_filter == 'Semester Exam' %}selected{% endif %}>Semester Exam</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small mb-1">Search</label>
+                <input type="text" name="q" class="form-control form-control-sm"
+                       placeholder="Search title or syllabus..." value="{{ search_q }}">
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-sm btn-primary w-100">
+                    <i class="bi bi-funnel"></i> Filter
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ======== EXAMS LIST ======== -->
+{% if exams %}
+<div class="row g-3">
+    {% for e in exams %}
+    <div class="col-md-6 col-xl-4">
+        <div class="card border-0 shadow-sm h-100 exam-card
+            {% if e.days_left < 0 %}opacity-50{% endif %}">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                        <span class="badge
+                            {% if e.exam_type == 'Quiz' %}bg-primary
+                            {% elif e.exam_type == 'Lab Exam' %}bg-success
+                            {% elif e.exam_type == 'Mid-Sem' %}bg-warning text-dark
+                            {% else %}bg-danger{% endif %}
+                            mb-2">{{ e.exam_type }}</span>
+                        <h6 class="fw-bold mb-0">{{ e.title }}</h6>
+                    </div>
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-light" data-bs-toggle="dropdown">
+                            <i class="bi bi-three-dots-vertical"></i>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                            <li>
+                                <a class="dropdown-item edit-exam-btn" href="#"
+                                   data-id="{{ e.id }}" data-bs-toggle="modal" data-bs-target="#editExamModal">
+                                    <i class="bi bi-pencil me-2"></i>Edit
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <form method="POST" action="{{ url_for('exam_delete', eid=e.id) }}"
+                                      onsubmit="return confirm('Delete this exam?')">
+                                    <button class="dropdown-item text-danger" type="submit">
+                                        <i class="bi bi-trash me-2"></i>Delete
+                                    </button>
+                                </form>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+                <p class="small text-muted mb-1"><i class="bi bi-book me-1"></i>{{ e.subject }}</p>
+                <p class="small text-muted mb-1">
+                    <i class="bi bi-calendar me-1"></i>{{ e.exam_date.strftime('%d %b %Y') }}
+                    {% if e.exam_time %} · <i class="bi bi-clock me-1"></i>{{ e.exam_time }}{% endif %}
+                </p>
+                {% if e.venue %}
+                <p class="small text-muted mb-1"><i class="bi bi-geo-alt me-1"></i>{{ e.venue }}</p>
+                {% endif %}
+                {% if e.syllabus %}
+                <p class="small text-muted mb-2"><i class="bi bi-journal-text me-1"></i>{{ e.syllabus[:120] }}{% if e.syllabus|length > 120 %}...{% endif %}</p>
+                {% endif %}
+                <div class="text-end">
+                    <span class="badge
+                        {% if e.days_left < 0 %}bg-secondary
+                        {% elif e.days_left <= 1 %}bg-danger
+                        {% elif e.days_left <= 3 %}bg-warning text-dark
+                        {% else %}bg-info{% endif %}
+                        rounded-pill fs-6">
+                        {% if e.days_left < 0 %}Passed
+                        {% elif e.days_left == 0 %}Today!
+                        {% elif e.days_left == 1 %}Tomorrow
+                        {% else %}{{ e.days_left }} days away{% endif %}
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="text-center py-5">
+    <i class="bi bi-calendar-x display-1 text-muted"></i>
+    <h5 class="mt-3 text-muted">No exams found</h5>
+    <p class="text-muted">
+        {% if subject_filter or type_filter or search_q %}
+            Try adjusting your filters.
+        {% else %}
+            Click "Add Exam" to schedule your first one.
+        {% endif %}
+    </p>
+</div>
+{% endif %}
+
+<!-- ======== ADD EXAM MODAL ======== -->
+<div class="modal fade" id="addExamModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="bi bi-plus-circle me-2"></i>Add Exam</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('exam_add') }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Title <span class="text-danger">*</span></label>
+                        <input type="text" name="title" class="form-control" required placeholder="e.g. DBMS Mid-Sem">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Subject <span class="text-danger">*</span></label>
+                        <input type="text" name="subject" class="form-control" required placeholder="e.g. Database Management">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Exam Type <span class="text-danger">*</span></label>
+                        <select name="exam_type" class="form-select">
+                            <option value="Quiz">Quiz</option>
+                            <option value="Lab Exam">Lab Exam</option>
+                            <option value="Mid-Sem">Mid-Sem</option>
+                            <option value="Semester Exam">Semester Exam</option>
+                        </select>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Exam Date <span class="text-danger">*</span></label>
+                            <input type="date" name="exam_date" class="form-control" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Exam Time</label>
+                            <input type="time" name="exam_time" class="form-control">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Syllabus / Notes</label>
+                        <textarea name="syllabus" class="form-control" rows="3" placeholder="Topics to cover..."></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Venue</label>
+                        <input type="text" name="venue" class="form-control" placeholder="e.g. Room 301, CS Block">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ======== EDIT EXAM MODAL ======== -->
+<div class="modal fade" id="editExamModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-warning">
+                <h5 class="modal-title"><i class="bi bi-pencil me-2"></i>Edit Exam</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" id="editExamForm" action="">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Title <span class="text-danger">*</span></label>
+                        <input type="text" name="title" id="editExamTitle" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Subject <span class="text-danger">*</span></label>
+                        <input type="text" name="subject" id="editExamSubject" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Exam Type <span class="text-danger">*</span></label>
+                        <select name="exam_type" id="editExamType" class="form-select">
+                            <option value="Quiz">Quiz</option>
+                            <option value="Lab Exam">Lab Exam</option>
+                            <option value="Mid-Sem">Mid-Sem</option>
+                            <option value="Semester Exam">Semester Exam</option>
+                        </select>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Exam Date <span class="text-danger">*</span></label>
+                            <input type="date" name="exam_date" id="editExamDate" class="form-control" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Exam Time</label>
+                            <input type="time" name="exam_time" id="editExamTime" class="form-control">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Syllabus / Notes</label>
+                        <textarea name="syllabus" id="editExamSyllabus" class="form-control" rows="3"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Venue</label>
+                        <input type="text" name="venue" id="editExamVenue" class="form-control">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-warning"><i class="bi bi-check-lg me-1"></i>Update</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

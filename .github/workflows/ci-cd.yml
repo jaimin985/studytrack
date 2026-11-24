@@ -1,0 +1,144 @@
+name: StudyTrack CI/CD Pipeline
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  # ============================================================
+  # STAGE 1: Code Quality & Automated Unit Tests
+  # ============================================================
+  unit-tests:
+    name: 🧪 Unit Tests & Code Quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Check out repository code
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: 📦 Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: 🔍 Python Syntax & Compilation Verification
+        run: |
+          python -m compileall app/ tests/
+
+      - name: 🚀 Execute Automated Test Suite
+        env:
+          SECRET_KEY: "ci-secret-key-for-testing"
+          MYSQL_HOST: "localhost"
+          MYSQL_PORT: 3306
+          MYSQL_USER: "studytrack"
+          MYSQL_PASSWORD: "studytrack123"
+          MYSQL_DATABASE: "studytrack"
+        run: |
+          python -m unittest discover -s tests -v
+
+  # ============================================================
+  # STAGE 2: Multi-Container Integration & Health Verification
+  # ============================================================
+  docker-integration:
+    name: 🐳 Docker Compose Two-Tier Integration Test
+    needs: unit-tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Check out repository code
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Prepare Environment File (.env)
+        run: |
+          cp .env.example .env
+          # Ensure test ports are configured
+          echo "APP_PORT=8085" >> .env
+          echo "DB_HOST_PORT=3307" >> .env
+
+      - name: 🏗️ Build and Launch Two-Tier Container Stack
+        run: |
+          docker compose up --build -d
+
+      - name: ⏳ Wait for Containers to Pass Healthchecks
+        timeout-minutes: 3
+        run: |
+          echo "Waiting for services to become healthy..."
+          for i in {1..30}; do
+            HEALTH=$(curl -s http://localhost:8085/health || echo "down")
+            if [[ "$HEALTH" == *"healthy"* ]]; then
+              echo "✅ Web tier and Database are healthy!"
+              break
+            fi
+            echo "Attempt $i/30: Stack is initializing, waiting 5s..."
+            sleep 5
+          done
+
+      - name: 📊 Inspect Running Containers & Port Mappings
+        run: |
+          docker compose ps
+          docker network inspect studytrack-network
+          docker volume inspect studytrack-db-data
+
+      - name: 🩺 Probe /health Endpoint
+        run: |
+          RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" http://localhost:8085/health)
+          echo "$RESPONSE"
+          echo "$RESPONSE" | grep "HTTP_STATUS:200"
+          echo "$RESPONSE" | grep '"status":"healthy"'
+
+      - name: 🗄️ Verify Database Initialization & Pre-Seeded Records
+        run: |
+          docker exec studytrack-db mysql -u studytrack -pstudytrack123 studytrack -e "
+            SELECT 'Assignments Count' AS metric, count(*) AS total FROM assignments
+            UNION ALL
+            SELECT 'Exams Count', count(*) FROM exams
+            UNION ALL
+            SELECT 'Users Count', count(*) FROM users;
+          "
+
+      - name: 🧪 Execute In-Container Test Suite
+        run: |
+          docker cp tests studytrack-web:/app/tests
+          docker exec studytrack-web python -m unittest discover -s /app/tests -v
+
+      - name: 📋 Check Container Logs for Email Reminders
+        run: |
+          docker compose logs web --tail 50
+
+      - name: 🧹 Clean Teardown
+        if: always()
+        run: |
+          docker compose down -v
+
+  # ============================================================
+  # STAGE 3: Production Docker Image Build (CD Ready)
+  # ============================================================
+  docker-build:
+    name: 🚀 Docker Build & Artifact Readiness
+    needs: docker-integration
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Check out repository code
+        uses: actions/checkout@v4
+
+      - name: 🔧 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🔨 Build Production Web Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          tags: studytrack-web:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

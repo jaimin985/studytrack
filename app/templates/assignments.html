@@ -1,0 +1,269 @@
+{% extends "base.html" %}
+{% block title %}Assignments – StudyTrack{% endblock %}
+{% block content %}
+
+<!-- Page Header -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3 class="fw-bold mb-1"><i class="bi bi-clipboard-check me-2"></i>Assignments</h3>
+        <p class="text-muted mb-0">Manage your assignments and track progress.</p>
+    </div>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addAssignmentModal">
+        <i class="bi bi-plus-circle me-1"></i> Add Assignment
+    </button>
+</div>
+
+<!-- ======== FILTERS ======== -->
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-body py-2">
+        <form method="GET" action="{{ url_for('assignments_list') }}" class="row g-2 align-items-end">
+            <div class="col-md-2">
+                <label class="form-label small mb-1">Subject</label>
+                <select name="subject" class="form-select form-select-sm">
+                    <option value="">All Subjects</option>
+                    {% for s in subjects %}
+                    <option value="{{ s }}" {% if subject_filter == s %}selected{% endif %}>{{ s }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-1">Priority</label>
+                <select name="priority" class="form-select form-select-sm">
+                    <option value="">All</option>
+                    <option value="High" {% if priority_filter == 'High' %}selected{% endif %}>High</option>
+                    <option value="Medium" {% if priority_filter == 'Medium' %}selected{% endif %}>Medium</option>
+                    <option value="Low" {% if priority_filter == 'Low' %}selected{% endif %}>Low</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-1">Status</label>
+                <select name="status" class="form-select form-select-sm">
+                    <option value="">All</option>
+                    <option value="Pending" {% if status_filter == 'Pending' %}selected{% endif %}>Pending</option>
+                    <option value="In Progress" {% if status_filter == 'In Progress' %}selected{% endif %}>In Progress</option>
+                    <option value="Completed" {% if status_filter == 'Completed' %}selected{% endif %}>Completed</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-1">Sort By</label>
+                <select name="sort" class="form-select form-select-sm">
+                    <option value="due_date" {% if sort_by == 'due_date' %}selected{% endif %}>Due Date</option>
+                    <option value="priority" {% if sort_by == 'priority' %}selected{% endif %}>Priority First</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small mb-1">Search</label>
+                <input type="text" name="q" class="form-control form-control-sm"
+                       placeholder="Search title or description..." value="{{ search_q }}">
+            </div>
+            <div class="col-md-1">
+                <button type="submit" class="btn btn-sm btn-primary w-100">
+                    <i class="bi bi-funnel"></i> Filter
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ======== ASSIGNMENTS LIST ======== -->
+{% if assignments %}
+<div class="row g-3">
+    {% for a in assignments %}
+    <div class="col-md-6 col-xl-4">
+        <div class="card border-0 shadow-sm h-100 assignment-card
+            {% if a.status == 'Completed' %}opacity-75{% endif %}
+            {% if a.days_left < 0 and a.status != 'Completed' %}border-start border-danger border-3{% endif %}">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <h6 class="fw-bold mb-0 {% if a.status == 'Completed' %}text-decoration-line-through text-muted{% endif %}">
+                        {{ a.title }}
+                    </h6>
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-light" data-bs-toggle="dropdown">
+                            <i class="bi bi-three-dots-vertical"></i>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                            <li>
+                                <a class="dropdown-item edit-assignment-btn" href="#"
+                                   data-id="{{ a.id }}" data-bs-toggle="modal" data-bs-target="#editAssignmentModal">
+                                    <i class="bi bi-pencil me-2"></i>Edit
+                                </a>
+                            </li>
+                            <li>
+                                <form method="POST" action="{{ url_for('assignment_toggle', aid=a.id) }}">
+                                    <button class="dropdown-item" type="submit">
+                                        <i class="bi bi-check2-circle me-2"></i>
+                                        {% if a.status == 'Completed' %}Mark Pending{% else %}Mark Complete{% endif %}
+                                    </button>
+                                </form>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <form method="POST" action="{{ url_for('assignment_delete', aid=a.id) }}"
+                                      onsubmit="return confirm('Delete this assignment?')">
+                                    <button class="dropdown-item text-danger" type="submit">
+                                        <i class="bi bi-trash me-2"></i>Delete
+                                    </button>
+                                </form>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+                <p class="small text-muted mb-2">
+                    <i class="bi bi-book me-1"></i>{{ a.subject }}
+                </p>
+                {% if a.description %}
+                <p class="small text-muted mb-2">{{ a.description[:100] }}{% if a.description|length > 100 %}...{% endif %}</p>
+                {% endif %}
+                <div class="d-flex justify-content-between align-items-center mt-auto">
+                    <div>
+                        <span class="badge
+                            {% if a.priority == 'High' %}bg-danger
+                            {% elif a.priority == 'Medium' %}bg-warning text-dark
+                            {% else %}bg-secondary{% endif %}">{{ a.priority }}</span>
+                        <span class="badge
+                            {% if a.status == 'Completed' %}bg-success
+                            {% elif a.status == 'In Progress' %}bg-info
+                            {% else %}bg-secondary{% endif %}">{{ a.status }}</span>
+                    </div>
+                    <div class="text-end">
+                        <small class="text-muted d-block">
+                            <i class="bi bi-calendar me-1"></i>{{ a.due_date.strftime('%d %b %Y') }}
+                        </small>
+                        {% if a.status != 'Completed' %}
+                        <span class="badge {{ a.badge_class }} rounded-pill">
+                            {% if a.days_left < 0 %}{{ -a.days_left }}d overdue
+                            {% elif a.days_left == 0 %}Due today!
+                            {% else %}{{ a.days_left }}d left{% endif %}
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="text-center py-5">
+    <i class="bi bi-clipboard-x display-1 text-muted"></i>
+    <h5 class="mt-3 text-muted">No assignments found</h5>
+    <p class="text-muted">
+        {% if subject_filter or priority_filter or status_filter or search_q %}
+            Try adjusting your filters.
+        {% else %}
+            Click "Add Assignment" to create your first one.
+        {% endif %}
+    </p>
+</div>
+{% endif %}
+
+<!-- ======== ADD ASSIGNMENT MODAL ======== -->
+<div class="modal fade" id="addAssignmentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="bi bi-plus-circle me-2"></i>Add Assignment</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('assignment_add') }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Title <span class="text-danger">*</span></label>
+                        <input type="text" name="title" class="form-control" required placeholder="e.g. Lab Report 5">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Subject <span class="text-danger">*</span></label>
+                        <input type="text" name="subject" class="form-control" required placeholder="e.g. Cloud Computing">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea name="description" class="form-control" rows="3" placeholder="Optional details..."></textarea>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Due Date <span class="text-danger">*</span></label>
+                            <input type="date" name="due_date" class="form-control" required>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Priority</label>
+                            <select name="priority" class="form-select">
+                                <option value="High">High</option>
+                                <option value="Medium" selected>Medium</option>
+                                <option value="Low">Low</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Status</label>
+                            <select name="status" class="form-select">
+                                <option value="Pending" selected>Pending</option>
+                                <option value="In Progress">In Progress</option>
+                                <option value="Completed">Completed</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ======== EDIT ASSIGNMENT MODAL ======== -->
+<div class="modal fade" id="editAssignmentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-warning">
+                <h5 class="modal-title"><i class="bi bi-pencil me-2"></i>Edit Assignment</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" id="editAssignmentForm" action="">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Title <span class="text-danger">*</span></label>
+                        <input type="text" name="title" id="editTitle" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Subject <span class="text-danger">*</span></label>
+                        <input type="text" name="subject" id="editSubject" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea name="description" id="editDescription" class="form-control" rows="3"></textarea>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Due Date <span class="text-danger">*</span></label>
+                            <input type="date" name="due_date" id="editDueDate" class="form-control" required>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Priority</label>
+                            <select name="priority" id="editPriority" class="form-select">
+                                <option value="High">High</option>
+                                <option value="Medium">Medium</option>
+                                <option value="Low">Low</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Status</label>
+                            <select name="status" id="editStatus" class="form-select">
+                                <option value="Pending">Pending</option>
+                                <option value="In Progress">In Progress</option>
+                                <option value="Completed">Completed</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-warning"><i class="bi bi-check-lg me-1"></i>Update</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
