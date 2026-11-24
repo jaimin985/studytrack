@@ -17,8 +17,9 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
+# Copy application code and tests
 COPY app/ .
+COPY tests/ ./tests/
 
 # Change ownership to non-root user
 RUN chown -R studytrack:studytrack /app

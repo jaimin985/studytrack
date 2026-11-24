@@ -38,14 +38,20 @@ def run_reminder_check():
     """
     Core reminder logic – called by the scheduler or manually.
     - Assignments: remind 1 day before due date (if not completed).
-    - Exams: remind 3 days and 1 day before exam date.
+    - Exams (Quiz, Lab Exam, Mid-Sem, Semester Exam): remind 3 days, 2 days, and 1 day before.
     """
     print("[SCHEDULER] Running reminder check...")
     today = date.today()
     tomorrow = today + timedelta(days=1)
-    three_days = today + timedelta(days=3)
 
-    # ---- Assignment reminders (1 day before) ----
+    type_icons = {
+        "Quiz": "📝",
+        "Lab Exam": "🧪",
+        "Mid-Sem": "📚",
+        "Semester Exam": "🎓",
+    }
+
+    # ---- 1. Assignment reminders (1 day before) ----
     assignments = execute_query(
         "SELECT a.*, u.name AS student_name, u.email AS student_email "
         "FROM assignments a JOIN users u ON a.user_id = u.id "
@@ -56,42 +62,52 @@ def run_reminder_check():
     for a in assignments:
         if not _already_notified(a["user_id"], "assignment", a["id"], 1):
             html = build_assignment_reminder_html(a["student_name"], a)
-            subject = f"⏰ Reminder: '{a['title']}' is due tomorrow!"
+            subject = f"⏰ [ASSIGNMENT] Reminder: '{a['title']}' is due tomorrow!"
+            print(f"[SCHEDULER] [ASSIGNMENT] Dispatched reminder for '{a['title']}' due tomorrow to {a['student_email']}")
             if send_email(a["student_email"], subject, html):
                 _log_notification(a["user_id"], "assignment", a["id"], 1)
     print(f"[SCHEDULER]   Checked {len(assignments)} assignment(s) due tomorrow.")
 
-    # ---- Exam reminders (3 days before) ----
-    exams_3d = execute_query(
-        "SELECT e.*, u.name AS student_name, u.email AS student_email "
-        "FROM exams e JOIN users u ON e.user_id = u.id "
-        "WHERE e.exam_date = %s",
-        (three_days,),
-        fetch=True,
-    )
-    for e in exams_3d:
-        if not _already_notified(e["user_id"], "exam", e["id"], 3):
-            html = build_exam_reminder_html(e["student_name"], e, 3)
-            subject = f"📝 Exam in 3 days: {e['title']}"
-            if send_email(e["student_email"], subject, html):
-                _log_notification(e["user_id"], "exam", e["id"], 3)
-    print(f"[SCHEDULER]   Checked {len(exams_3d)} exam(s) in 3 days.")
+    # ---- 2. Exam reminders (Checking 3 days, 2 days, and 1 day before) ----
+    # Specifically distinguishes Quiz, Lab Exam, Mid-Sem, and Semester Exam!
+    total_exams_checked = 0
+    for days_before in (3, 2, 1):
+        target_date = today + timedelta(days=days_before)
+        exams = execute_query(
+            "SELECT e.*, u.name AS student_name, u.email AS student_email "
+            "FROM exams e JOIN users u ON e.user_id = u.id "
+            "WHERE e.exam_date = %s",
+            (target_date,),
+            fetch=True,
+        )
+        total_exams_checked += len(exams)
 
-    # ---- Exam reminders (1 day before) ----
-    exams_1d = execute_query(
-        "SELECT e.*, u.name AS student_name, u.email AS student_email "
-        "FROM exams e JOIN users u ON e.user_id = u.id "
-        "WHERE e.exam_date = %s",
-        (tomorrow,),
-        fetch=True,
-    )
-    for e in exams_1d:
-        if not _already_notified(e["user_id"], "exam", e["id"], 1):
-            html = build_exam_reminder_html(e["student_name"], e, 1)
-            subject = f"🚨 Exam TOMORROW: {e['title']}"
-            if send_email(e["student_email"], subject, html):
-                _log_notification(e["user_id"], "exam", e["id"], 1)
-    print(f"[SCHEDULER]   Checked {len(exams_1d)} exam(s) tomorrow.")
+        for e in exams:
+            exam_type = e.get("exam_type", "Exam")
+            icon = type_icons.get(exam_type, "📝")
+
+            if days_before == 1:
+                urgency_label = "TOMORROW"
+                subject = f"🚨 [{exam_type.upper()}] {icon} {exam_type} TOMORROW: {e['title']}"
+            elif days_before == 2:
+                urgency_label = "in 2 days"
+                subject = f"⚠️ [{exam_type.upper()}] {icon} {exam_type} in 2 days: {e['title']}"
+            else:
+                urgency_label = "in 3 days"
+                subject = f"📅 [{exam_type.upper()}] {icon} {exam_type} in 3 days: {e['title']}"
+
+            if not _already_notified(e["user_id"], "exam", e["id"], days_before):
+                html = build_exam_reminder_html(e["student_name"], e, days_before)
+                print(f"[SCHEDULER] [{exam_type.upper()}] Dispatched {exam_type} reminder for '{e['title']}' ({urgency_label}) to {e['student_email']}")
+                if send_email(e["student_email"], subject, html):
+                    _log_notification(e["user_id"], "exam", e["id"], days_before)
+            else:
+                print(f"[SCHEDULER] [{exam_type.upper()}] Already notified: {exam_type} '{e['title']}' ({days_before}d before)")
+
+        time_frame = "tomorrow" if days_before == 1 else f"in {days_before} days"
+        print(f"[SCHEDULER]   Checked {len(exams)} exam(s) scheduled {time_frame}.")
+
+    print(f"[SCHEDULER] Exam check completed ({total_exams_checked} total active exam(s) processed across 1, 2, and 3-day windows).")
     print("[SCHEDULER] Reminder check complete.")
 
 

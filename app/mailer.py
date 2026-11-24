@@ -38,10 +38,23 @@ def send_email(to_email, subject, html_body):
 
     # ----- Fallback: log to console -----
     if not cfg["username"] or not cfg["password"]:
+        category = "NOTIFICATION"
+        if "Lab Exam" in subject:
+            category = "LAB EXAM"
+        elif "Quiz" in subject:
+            category = "QUIZ"
+        elif "Mid-Sem" in subject:
+            category = "MID-SEM"
+        elif "Semester Exam" in subject:
+            category = "SEMESTER EXAM"
+        elif "Reminder:" in subject or "Assignment" in subject:
+            category = "ASSIGNMENT"
+
         print("=" * 60)
-        print("[MAILER] SMTP not configured – logging email to console")
-        print(f"  To:      {to_email}")
-        print(f"  Subject: {subject}")
+        print(f"[MAILER] [{category}] SMTP not configured – logging email to console")
+        print(f"  Category: {category}")
+        print(f"  To:       {to_email}")
+        print(f"  Subject:  {subject}")
         print("-" * 60)
         print(html_body[:500])
         if len(html_body) > 500:
@@ -115,18 +128,26 @@ def build_exam_reminder_html(student_name, exam, days_left):
         "Mid-Sem": "#fd7e14",
         "Semester Exam": "#dc3545",
     }
-    color = type_colors.get(exam["exam_type"], "#6c757d")
+    type_icons = {
+        "Quiz": "📝",
+        "Lab Exam": "🧪",
+        "Mid-Sem": "📚",
+        "Semester Exam": "🎓",
+    }
+    exam_type = exam.get("exam_type", "Exam")
+    color = type_colors.get(exam_type, "#6c757d")
+    icon = type_icons.get(exam_type, "📝")
     urgency = "tomorrow" if days_left <= 1 else f"in {days_left} days"
 
     return f"""
     <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <div style="background: linear-gradient(135deg, #f093fb, #f5576c); padding: 24px; border-radius: 12px 12px 0 0;">
-            <h1 style="color: white; margin: 0; font-size: 22px;">📝 Exam Reminder</h1>
+            <h1 style="color: white; margin: 0; font-size: 22px;">{icon} {exam_type} Reminder</h1>
         </div>
         <div style="background: #ffffff; padding: 24px; border: 1px solid #e0e0e0;">
             <p style="font-size: 16px; color: #333;">Hi <strong>{student_name}</strong>,</p>
             <p style="font-size: 15px; color: #555;">
-                Your exam is <strong style="color: #dc3545;">{urgency}</strong>!
+                Your <strong>{exam_type}</strong> is <strong style="color: #dc3545;">{urgency}</strong>!
             </p>
             <div style="background: #f8f9fa; border-left: 4px solid {color}; padding: 16px; margin: 16px 0; border-radius: 0 8px 8px 0;">
                 <h3 style="margin: 0 0 8px; color: #333;">{exam["title"]}</h3>
@@ -134,7 +155,7 @@ def build_exam_reminder_html(student_name, exam, days_left):
                 <p style="margin: 4px 0;">
                     <strong>Type:</strong>
                     <span style="background: {color}; color: white; padding: 2px 10px; border-radius: 12px; font-size: 13px;">
-                        {exam["exam_type"]}
+                        {icon} {exam_type}
                     </span>
                 </p>
                 <p style="margin: 4px 0; color: #666;"><strong>Date:</strong> {exam["exam_date"]}</p>
